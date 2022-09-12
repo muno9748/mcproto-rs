@@ -1,4 +1,5 @@
 # mcproto-rs
+# Only Protocol Version 753 works
 
 This is an implementation of serialization and deserialization of the minecraft protocol.
 
@@ -13,8 +14,6 @@ Usage:
 [dependencies]
 mcproto-rs = { git = "https://github.com/muno9748/mcproto-rs.git" }
 ```
-
-# Only Protocol Version 753 works
 
 ## `#![no_std]`
 
