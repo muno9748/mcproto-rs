@@ -359,7 +359,7 @@ define_protocol!(753, Packet753, RawPacket753, RawPacket753Body, Packet753Kind =
         world_name: String,
         hashed_seed: i64,
         gamemode: GameMode,
-        previous_gamemode: GameMode,
+        previous_gamemode: PreviousGameMode,
         is_debug: bool,
         is_flat: bool,
         copy_metadata: bool
