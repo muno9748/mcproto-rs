@@ -1,8 +1,6 @@
 use alloc::{vec::Vec, string::{String, ToString}, collections::{BTreeMap}, boxed::Box, borrow::ToOwned, fmt, format};
 use serde::{Serialize, Deserialize, Deserializer, de, Serializer};
-use serde::de::{Visitor, Error, IntoDeserializer, MapAccess};
-use serde::ser::SerializeMap;
-use serde_json::Value;
+use serde::de::{Visitor, Error, IntoDeserializer};
 use crate::{SerializeResult, DeserializeResult};
 
 pub type BoxedChat = Box<Chat>;
@@ -142,8 +140,6 @@ impl TraditionalParser {
                     underlined: self.underlined,
                     strikethrough: self.strikethrough,
                     obfuscated: self.obfuscated,
-                    hover_event: None,
-                    click_event: None,
                     insertion: None,
                     extra: Vec::default()
                 }
@@ -263,10 +259,6 @@ pub struct BaseComponent {
     pub color: Option<ColorCode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub insertion: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub click_event: Option<ChatClickEvent>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hover_event: Option<ChatHoverEvent>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub extra: Vec<BoxedChat>,
 }
@@ -297,8 +289,6 @@ impl Into<BaseComponent> for JsonComponentBase {
             obfuscated: self.obfuscated.unwrap_or(false),
             color: self.color,
             insertion: self.insertion,
-            click_event: self.click_event,
-            hover_event: self.hover_event,
             extra: self.extra.into_iter().map(move |elem| elem.boxed()).collect(),
         }
     }
@@ -313,10 +303,6 @@ struct JsonComponentBase {
     pub obfuscated: Option<bool>,
     pub color: Option<ColorCode>,
     pub insertion: Option<String>,
-    #[serde(rename = "clickEvent")]
-    pub click_event: Option<ChatClickEvent>,
-    #[serde(rename = "hoverEvent")]
-    pub hover_event: Option<ChatHoverEvent>,
     #[serde(default = "Vec::default")]
     pub extra: Vec<Chat>,
 
@@ -334,8 +320,6 @@ impl Default for BaseComponent {
             obfuscated: false,
             color: None,
             insertion: None,
-            click_event: None,
-            hover_event: None,
             extra: Vec::default(),
         }
     }
@@ -456,157 +440,6 @@ pub struct ScoreComponentObjective {
     pub objective: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum ChatClickEvent {
-    OpenUrl(String),
-    RunCommand(String),
-    SuggestCommand(String),
-    ChangePage(i32)
-}
-
-impl Serialize for ChatClickEvent {
-    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error> where
-        S: Serializer
-    {
-        let mut m = serializer.serialize_map(Some(2))?;
-
-        use ChatClickEvent::*;
-
-        m.serialize_entry("action", match self {
-            OpenUrl(_) => "open_url",
-            RunCommand(_) => "run_command",
-            SuggestCommand(_) => "suggest_command",
-            ChangePage(_) => "change_page",
-        })?;
-
-        m.serialize_key("value")?;
-
-        match self {
-            OpenUrl(body) => m.serialize_value(body),
-            RunCommand(body) => m.serialize_value(body),
-            SuggestCommand(body) => m.serialize_value(body),
-            ChangePage(body) => m.serialize_value(body),
-        }?;
-
-        m.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for ChatClickEvent {
-    fn deserialize<D>(deserializer: D) -> Result<Self, <D as Deserializer<'de>>::Error> where
-        D: Deserializer<'de>
-    {
-        struct V;
-
-        impl<'de> Visitor<'de> for V {
-            type Value = ChatClickEvent;
-
-            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "an event object for ChatClickEvent")
-            }
-
-            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, <A as MapAccess<'de>>::Error> where
-                A: MapAccess<'de>
-            {
-                let (action, value) = read_event(&mut map)?;
-
-                use ChatClickEvent::*;
-                match action {
-                    "open_url" => match value.as_str() {
-                        Some(url) => Ok(OpenUrl(url.to_owned())),
-                        None => Err(A::Error::custom(format!("open_url requires string body, got {}", value)))
-                    },
-                    "run_command" => match value.as_str() {
-                        Some(cmd) => Ok(RunCommand(cmd.to_owned())),
-                        None => Err(A::Error::custom(format!("run_command requires string body, got {}", value)))
-                    },
-                    "suggest_command" => match value.as_str() {
-                        Some(cmd) => Ok(SuggestCommand(cmd.to_owned())),
-                        None => Err(A::Error::custom(format!("suggest_command requires string body, got {}", value)))
-                    },
-                    "change_page" => match value.as_i64() {
-                        Some(v) => Ok(ChangePage(v as i32)),
-                        None => Err(A::Error::custom(format!("change_page requires integer body, got {}", value)))
-                    },
-                    other => Err(A::Error::custom(format!("invalid click action kind {}", other)))
-                }
-            }
-        }
-
-        deserializer.deserialize_map(V)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum ChatHoverEvent {
-    ShowText(BoxedChat),
-    ShowItem(Value),
-    ShowEntity(Value)
-}
-
-impl Serialize for ChatHoverEvent {
-    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error> where
-        S: Serializer
-    {
-        let mut m = serializer.serialize_map(Some(2))?;
-
-        use ChatHoverEvent::*;
-
-        m.serialize_entry("action", match self {
-            ShowText(_) => "show_text",
-            ShowItem(_) => "show_item",
-            ShowEntity(_) => "show_entity",
-        })?;
-
-        m.serialize_key("value")?;
-
-        match self {
-            ShowText(body) => m.serialize_value(body),
-            ShowItem(body) => m.serialize_value(body),
-            ShowEntity(body) => m.serialize_value(body),
-        }?;
-
-        m.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for ChatHoverEvent {
-    fn deserialize<D>(deserializer: D) -> Result<Self, <D as Deserializer<'de>>::Error> where
-        D: Deserializer<'de>
-    {
-        struct V;
-
-        impl<'de> Visitor<'de> for V {
-            type Value = ChatHoverEvent;
-
-            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "an event object for ChatClickEvent")
-            }
-
-            //noinspection ALL
-            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, <A as MapAccess<'de>>::Error> where
-                A: MapAccess<'de>
-            {
-                let (action, value) = read_event(&mut map)?;
-
-                use ChatHoverEvent::*;
-                match action {
-                    "show_text" => Ok(ShowText(
-                        Chat::deserialize(value.into_deserializer())
-                            .map_err(move |err| A::Error::custom(
-                                format!("error deserializing text to show {:?}", err)))?
-                            .boxed())),
-                    "show_item" => Ok(ShowItem(value)),
-                    "show_entity" => Ok(ShowEntity(value)),
-                    other => Err(A::Error::custom(format!("invalid hover action kind {}", other)))
-                }
-            }
-        }
-
-        deserializer.deserialize_map(V)
-    }
 }
 
 pub const SECTION_SYMBOL: char = '§';
@@ -988,40 +821,6 @@ impl TestRandom for Chat {
         let str = String::test_gen_random();
         Chat::from_text(str.as_str())
     }
-}
-
-fn read_event<'de, A>(
-    access: &mut A,
-) -> Result<(&'de str, Value), <A as MapAccess<'de>>::Error>
-    where A: MapAccess<'de>
-{
-    let mut action: Option<&str> = None;
-    let mut value: Option<Value> = None;
-    while action.is_none() || value.is_none() {
-        if let Some(key) = access.next_key()? {
-            match key {
-                "action" => {
-                    action = access.next_value()?;
-                    if action.is_none() {
-                        return Err(A::Error::custom("none for value key=action"));
-                    }
-                },
-                "value" | "contents" => {
-                    value = access.next_value()?;
-                    if value.is_none() {
-                        return Err(A::Error::custom("none for value key=value"));
-                    }
-                },
-                other => {
-                    return Err(A::Error::custom(format!("unexpected key in event {}", other)));
-                }
-            }
-        } else {
-            return Err(A::Error::custom(format!("event needs action and value")));
-        }
-    }
-
-    Ok((action.expect("checked"), value.expect("checked")))
 }
 
 #[cfg(test)]
