@@ -2,8 +2,7 @@
 
 This is an implementation of serialization and deserialization of the minecraft protocol.
 
-This crate can be used to implement any version of the minecraft protocol, and has an example implementation of version 
-1.15.2 included as module `v1_15_2`.
+This crate can be used to implement any version of the minecraft protocol
 
 To implement your own protocol, consult this example, and use the macros to define a protocol to your heart's content!
 
@@ -12,8 +11,10 @@ More documentation to come, just dumping the code since I finished it.
 Usage:
 ```toml
 [dependencies]
-mcproto-rs = "0.2.0"
+mcproto-rs = { git = "https://github.com/muno9748/mcproto-rs.git" }
 ```
+
+# Only Protocol Version 753 works
 
 ## `#![no_std]`
 
